@@ -11,9 +11,9 @@ output "aws_cloudfront_distribution_id" {
   value = aws_cloudfront_distribution.frontend.id
 }
 
-output "ec2_public_dns" {
-  value       = aws_instance.api_server.public_dns
-  description = "Public DNS name of the EC2 instance"
+output "alb_dns_name" {
+  value       = aws_lb.application_load_balancer.dns_name
+  description = "The DNS name of the Application Load Balancer"
 }
 
 output "ecr_registry_url" {
@@ -21,7 +21,7 @@ output "ecr_registry_url" {
 }
 
 output "ec2_instance_id" {
-  value = aws_instance.api_server.id
+  value = aws_instance.api_server[*].id
 }
 
 output "ecr_repository" {

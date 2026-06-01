@@ -1,6 +1,5 @@
-data "aws_caller_identity" "current" {}
-
 resource "aws_instance" "api_server" {
+  count                  = 2 
   ami                    = data.aws_ami.amazon_linux_2023.id
   instance_type          = "t2.micro"
   iam_instance_profile   = aws_iam_instance_profile.ec2_access_instance_profile.name
@@ -18,10 +17,17 @@ resource "aws_instance" "api_server" {
   )
 
   tags = {
-    Name = "rock-of-ages-instance"
+    Name = "rock-of-ages-instance-${count.index}"
+    Role = "rock-of-ages-api"
   }
 }
 
+resource "aws_lb_target_group_attachment" "api" {
+  count            = length(aws_instance.api_server)
+  target_group_arn = aws_lb_target_group.api_tg.arn
+  target_id        = aws_instance.api_server[count.index].id
+  port             = 80
+}
 
 
 data "aws_ami" "amazon_linux_2023" {

@@ -1,3 +1,5 @@
+data "aws_caller_identity" "current" {}
+
 # Use the default VPC
 data "aws_vpc" "default" {
   default = true
@@ -25,8 +27,30 @@ resource "aws_security_group" "ec2_sg" {
     cidr_blocks = ["0.0.0.0/0"]
   }
 
+  #security groups updated for load balancing 
   ingress {
     description = "Allow HTTP"
+    from_port   = 80
+    to_port     = 80
+    protocol    = "tcp"
+    security_groups = [aws_security_group.alb_sg.id] 
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+}
+
+# Create a security group for ALB added for load balancing
+resource "aws_security_group" "alb_sg" {
+  name        = "rock-of-ages-alb-sg"
+  description = "Allow HTTP traffic to ALB"
+  vpc_id      = data.aws_vpc.default.id
+
+  ingress {
     from_port   = 80
     to_port     = 80
     protocol    = "tcp"
@@ -38,6 +62,10 @@ resource "aws_security_group" "ec2_sg" {
     to_port     = 0
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
+  }
+
+  tags = {
+    Name = "rock-of-ages-alb-sg"
   }
 }
 
@@ -72,5 +100,50 @@ resource "aws_db_subnet_group" "rock_of_ages" {
   subnet_ids = data.aws_subnets.default.ids
   tags = {
     Name = "rock-of-ages-db-subnet-group"
+  }
+}
+
+resource "aws_lb" "application_load_balancer" {
+  name               = "rock-of-ages-alb"
+  internal           = false
+  load_balancer_type = "application"
+  security_groups    = [aws_security_group.alb_sg.id]
+  subnets            = data.aws_subnets.default.ids
+
+  tags = {
+    Name = "rock-of-ages-alb"
+  }
+}
+
+resource "aws_lb_target_group" "api_tg" {
+  name     = "rock-of-ages-api-tg"
+  port     = 80
+  protocol = "HTTP"
+  vpc_id   = data.aws_vpc.default.id
+
+  health_check {
+    path                = "/health/"
+    protocol            = "HTTP"
+    matcher             = "200"
+    interval            = 15
+    timeout             = 5
+    healthy_threshold   = 2
+    unhealthy_threshold = 2
+  }
+
+  tags = {
+    Name = "rock-of-ages-api-tg"
+  }
+}
+
+
+resource "aws_lb_listener" "http_listener" {
+  load_balancer_arn = aws_lb.application_load_balancer.arn
+  port              = 80
+  protocol          = "HTTP"
+
+  default_action {
+    type             = "forward"
+    target_group_arn = aws_lb_target_group.api_tg.arn
   }
 }
